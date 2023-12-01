@@ -1,64 +1,66 @@
 package vn.edu.iuh.fit.repositories;
 
+import vn.edu.iuh.fit.connectDB.ConnectDB;
+import vn.edu.iuh.fit.models.Logs;
 
-import jakarta.ejb.Stateless;
-import jakarta.persistence.*;
-import jakarta.transaction.Transaction;
-import vn.edu.iuh.fit.entities.Log;
-
-import java.sql.Date;
-import java.time.Instant;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
-//@ApplicationScoped
-//@Transactional
-
-@Stateless
-//@TransactionAttribute(TransactionAttributeType.NEVER)
 public class LogRepository {
-    private EntityManager em;
+    private final Connection connection;
 
     public LogRepository() {
-        em = Persistence.createEntityManagerFactory("test").createEntityManager();
+        connection = ConnectDB.getInstance().getConnection();
     }
 
-    public List<Log> findAll() {
-        TypedQuery<Log> q = em.createQuery("select l from Log l", Log.class);
-        return q.getResultList();
+    public void logLogin(String accountId) {
+        String sql = "INSERT INTO log (account_id, login_time) VALUES (?, NOW())";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, accountId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    public List<Log> findLogByUser(String account_id) {
-        TypedQuery<Log> q = em.createQuery("select l from Log l where l.account_id=?1", Log.class);
-        q.setParameter(1, account_id);
-        return q.getResultList();
+
+    public void logLogout(String accountId) {
+        // Record log logout from CSDL
+        String sql = "UPDATE log SET logout_time = NOW() WHERE account_id = ?";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, accountId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    public Log findLogByID(String account_id){
-        TypedQuery<Log> q = em.createQuery("select l from Log l where l.account_id=?1",Log.class);
-        q.setParameter(1,account_id);
-        return q.getSingleResult();
+    public List<Logs> getAllLogs() {
+        List<Logs> logList = new ArrayList<>();
+
+        try {
+            String sql = "SELECT * FROM log";
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            while (resultSet.next()) {
+                Logs log = new Logs();
+                log.setLogId(resultSet.getInt("id"));
+                log.setAccountId(resultSet.getString("account_id"));
+                log.setLoginTime(resultSet.getTimestamp("login_time"));
+                log.setLogoutTime(resultSet.getTimestamp("logout_time"));
+                logList.add(log);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return logList;
     }
 
-    public List<Log> findLogInTime(Date begin, Date end) {
-        TypedQuery<Log> q = em.createQuery("select l from Log l where l.login_time>=?1 and l.login_time<=?2", Log.class);
-        q.setParameter(1, begin);
-        q.setParameter(2, end);
-        return q.getResultList();
-    }
-
-    public void insert(Log log) {
-        em.persist(log);
-    }
-
-    public void updateLogin(Log log) {
-        log.setLogin_time(new Date(System.currentTimeMillis()));
-        //new Date(Calendar.getInstance().getTimeInMillis());
-        em.merge(log);
-    }
-
-    public void updatelogout(Log log){
-        log.setLogout_time(new Date(System.currentTimeMillis()));
-        em.merge(log);
-    }
 
 }
